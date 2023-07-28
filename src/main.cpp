@@ -30,14 +30,6 @@ typedef struct {
   int rssi
 } NetworkInfo;
 
-void swap(NetworkInfo *a, NetworkInfo *b) {
-  NetworkInfo temp = *a
-  *a = *b
-  *b = temp
-}
-
-
-
 void setup() {
   Serial.begin(115200);
   while (WiFi.status() != WL_CONNECTED) {
@@ -87,10 +79,7 @@ int* scan_and_display_networks(*str, int number_of_networks) {
 }
 
 
-
-void merge(int* left, int* right, int* whole) {
-    int nl = sizeof(left) / sizeof(left[0]);
-    int nr = sizeof(right) / sizeof(right[0]);
+void merge(int* left, int* right, int* whole, int nl, int nr) {
     int i = 0;
     int j = 0;
     int k = 0;
@@ -116,8 +105,7 @@ void merge(int* left, int* right, int* whole) {
     }
 }
 
-int* merge_sort(int* nums) {
-    int n = sizeof(nums) / sizeof(nums[0]);
+int* merge_sort(int* nums, int n) {
     if (n <= 1) {
         return nums;
     }
@@ -133,18 +121,17 @@ int* merge_sort(int* nums) {
         right[i - mid] = nums[i];
     }
 
-    left = merge_sort(left);
-    right = merge_sort(right);
+    left = merge_sort(left, mid);
+    right = merge_sort(right, n - mid);
 
     int* result = (int*)malloc(n * sizeof(int));
-    merge(left, right, result);
+    merge(left, right, result, mid, n - mid);
 
     free(left);
     free(right);
 
     return result;
 }
-
 
 
 
