@@ -6,9 +6,18 @@
 
 #define MAX_NETWORKS 50
 
+struct NetworkInfo{
+  char ssid[100];
+  int rssi;
+};
+
 BearSSL::WiFiClientSecure client;
 
-void scan_and_display_networks(char *str, int number_of_networks);
+void scan_and_display_networks(struct NetworkInfo* networks, int number_of_networks);
+
+void merge_sort(struct NetworkInfo* nums, int n);
+
+void merge(struct NetworkInfo* left, struct NetworkInfo* right, struct NetworkInfo* whole, int nl, int nr);
 
 inline bool connect(String ssid, String password, int timeout);
 
@@ -25,10 +34,6 @@ inline bool chatgpt_req(BearSSL::WiFiClientSecure& client,
 
 void process_json_response(const String& json_response);//needed to parse json for response
 
-typedef struct {
-  char ssid[100];
-  int rssi
-} NetworkInfo;
 
 void setup() {
   Serial.begin(115200);
@@ -41,8 +46,12 @@ void setup() {
     input.trim();
     if (input == "scan") {
       int number_of_networks = WiFi.scanNetworks();
-      char str[30];
-      int network_strengths[number_of_networks] = scan_and_display_networks(str, number_of_networks);
+      struct NetworkInfo networks[number_of_networks];
+      scan_and_display_networks(networks, number_of_networks);
+      merge_sort(networks, number_of_networks);
+      for (int i = 0; i < 5; i++) {
+        printf("%s\n%d\n", networks[i].ssid, networks[i].rssi);
+      }
       continue;
     } else {
       Serial.println("Enter Wifi password:");
@@ -70,21 +79,20 @@ void loop() {
   }
 }
 
-int* scan_and_display_networks(*str, int number_of_networks) {
-  int arr[number_of_networks];
+void scan_and_display_networks(struct NetworkInfo* networks, int number_of_networks) {
   for (int i = 0; i < number_of_networks; i++) {//we may want to sort by signal strength and only display the top amount at a later point in time
-    arr[i] = Wifi.RSSI(i);
+    strcpy(networks[i].ssid, WiFi.SSID(i).c_str());
+    networks[i].rssi = WiFi.RSSI(i);
   }
-  return arr;
 }
 
 
-void merge(int* left, int* right, int* whole, int nl, int nr) {
+void merge(struct NetworkInfo* left, struct NetworkInfo* right, struct NetworkInfo* whole, int nl, int nr) {
     int i = 0;
     int j = 0;
     int k = 0;
     while ((i < nl) && (j < nr)) {
-        if (left[i] >= right[j]) {
+        if (left[i].rssi >= right[j].rssi) {
             whole[k] = left[i];
             i++;
         } else {
@@ -105,35 +113,25 @@ void merge(int* left, int* right, int* whole, int nl, int nr) {
     }
 }
 
-int* merge_sort(int* nums, int n) {
+
+void merge_sort(struct NetworkInfo* nums, int n) {
     if (n <= 1) {
-        return nums;
+        return;
     }
 
     int mid = n / 2;
-    int* left = (int*)malloc(mid * sizeof(int));
-    int* right = (int*)malloc((n - mid) * sizeof(int));
+    merge_sort(nums, mid);
+    merge_sort(nums + mid, n - mid);
 
-    for (int i = 0; i < mid; i++) {
-        left[i] = nums[i];
+    struct NetworkInfo* sorted = (struct NetworkInfo*)malloc(n * sizeof(struct NetworkInfo));
+    merge(nums, nums + mid, sorted, mid, n - mid);
+
+    for (int i = 0; i < n; i++) {
+        nums[i] = sorted[i];
     }
-    for (int i = mid; i < n; i++) {
-        right[i - mid] = nums[i];
-    }
 
-    left = merge_sort(left, mid);
-    right = merge_sort(right, n - mid);
-
-    int* result = (int*)malloc(n * sizeof(int));
-    merge(left, right, result, mid, n - mid);
-
-    free(left);
-    free(right);
-
-    return result;
+    free(sorted);
 }
-
-
 
 inline bool connect(String ssid, String password, int timeout) {
   WiFi.begin(ssid, password);
@@ -145,6 +143,7 @@ inline bool connect(String ssid, String password, int timeout) {
   }
   return WiFi.status() == WL_CONNECTED;
 }
+
 
 inline bool user_message(String& result,
                     const String& model,
