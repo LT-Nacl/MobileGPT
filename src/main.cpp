@@ -4,9 +4,11 @@
 #include <WiFiClientSecureBearSSL.h>
 #include "Secrets.h"
 
+#define MAX_NETWORKS 50
+
 BearSSL::WiFiClientSecure client;
 
-void scan_and_display_networks();
+void scan_and_display_networks(char *str, int number_of_networks);
 
 inline bool connect(String ssid, String password, int timeout);
 
@@ -23,6 +25,19 @@ inline bool chatgpt_req(BearSSL::WiFiClientSecure& client,
 
 void process_json_response(const String& json_response);//needed to parse json for response
 
+typedef struct {
+  char ssid[100];
+  int rssi
+} NetworkInfo;
+
+void swap(NetworkInfo *a, NetworkInfo *b) {
+  NetworkInfo temp = *a
+  *a = *b
+  *b = temp
+}
+
+
+
 void setup() {
   Serial.begin(115200);
   while (WiFi.status() != WL_CONNECTED) {
@@ -33,7 +48,9 @@ void setup() {
     }
     input.trim();
     if (input == "scan") {
-      scan_and_display_networks();
+      int number_of_networks = WiFi.scanNetworks();
+      char str[30];
+      int network_strengths[number_of_networks] = scan_and_display_networks(str, number_of_networks);
       continue;
     } else {
       Serial.println("Enter Wifi password:");
@@ -61,17 +78,75 @@ void loop() {
   }
 }
 
-void scan_and_display_networks() {
-  int number_of_networks = WiFi.scanNetworks();
+int* scan_and_display_networks(*str, int number_of_networks) {
+  int arr[number_of_networks];
   for (int i = 0; i < number_of_networks; i++) {//we may want to sort by signal strength and only display the top amount at a later point in time
-    Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    Serial.print("Signal strength: ");
-    Serial.println(WiFi.RSSI(i));
-    Serial.println("-----------------------");
-    delay(600);//only reason for delay is to make it easier to read
+    arr[i] = Wifi.RSSI(i);
   }
+  return arr;
 }
+
+
+
+void merge(int* left, int* right, int* whole) {
+    int nl = sizeof(left) / sizeof(left[0]);
+    int nr = sizeof(right) / sizeof(right[0]);
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    while ((i < nl) && (j < nr)) {
+        if (left[i] >= right[j]) {
+            whole[k] = left[i];
+            i++;
+        } else {
+            whole[k] = right[j];
+            j++;
+        }
+        k++;
+    }
+    while (i < nl) {
+        whole[k] = left[i];
+        i++;
+        k++;
+    }
+    while (j < nr) {
+        whole[k] = right[j];
+        j++;
+        k++;
+    }
+}
+
+int* merge_sort(int* nums) {
+    int n = sizeof(nums) / sizeof(nums[0]);
+    if (n <= 1) {
+        return nums;
+    }
+
+    int mid = n / 2;
+    int* left = (int*)malloc(mid * sizeof(int));
+    int* right = (int*)malloc((n - mid) * sizeof(int));
+
+    for (int i = 0; i < mid; i++) {
+        left[i] = nums[i];
+    }
+    for (int i = mid; i < n; i++) {
+        right[i - mid] = nums[i];
+    }
+
+    left = merge_sort(left);
+    right = merge_sort(right);
+
+    int* result = (int*)malloc(n * sizeof(int));
+    merge(left, right, result);
+
+    free(left);
+    free(right);
+
+    return result;
+}
+
+
+
 
 inline bool connect(String ssid, String password, int timeout) {
   WiFi.begin(ssid, password);
