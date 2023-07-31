@@ -6,7 +6,7 @@
 
 #define MAX_NETWORKS 50
 
-struct NetworkInfo{
+struct NetworkInfo {
   char ssid[100];
   int rssi;
 };
@@ -70,6 +70,7 @@ void setup() {
   }
   Serial.println("Connected.");
 }
+
 void loop() {
   client.setInsecure();//so we dont need a certificate for https reqs
   String result;
@@ -80,7 +81,7 @@ void loop() {
 }
 
 void scan_and_display_networks(struct NetworkInfo* networks, int number_of_networks) {
-  for (int i = 0; i < number_of_networks; i++) {//we may want to sort by signal strength and only display the top amount at a later point in time
+  for (int i = 0; i < number_of_networks; i++) {
     strcpy(networks[i].ssid, WiFi.SSID(i).c_str());
     networks[i].rssi = WiFi.RSSI(i);
   }
@@ -135,7 +136,7 @@ void merge_sort(struct NetworkInfo* nums, int n) {
 
 inline bool connect(String ssid, String password, int timeout) {
   WiFi.begin(ssid, password);
-  int attempts = 0;//connection attempts
+  int attempts = 0;
   while (WiFi.status() != WL_CONNECTED and  attempts < timeout) {
     Serial.println("Connecting...");
     delay(1500);
