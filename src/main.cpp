@@ -2,7 +2,10 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
+#include <TFT_eSPI.h>
 #include "Secrets.h"
+
+TFT_eSPI tft = TFT_eSPI();
 
 BearSSL::WiFiClientSecure client;
 
@@ -24,51 +27,55 @@ inline bool chatgpt_req(BearSSL::WiFiClientSecure& client,
 void process_json_response(const String& json_response);//needed to parse json for response
 
 void setup() {
-  Serial.begin(115200);
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.setCursor(0,0,4);
+  tft.setTextCursor(TFT_WHITE);
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Enter Wifi name or \"scan\" to scan for networks: ");
+    tft.println("Enter Wifi name or \"scan\" to scan for networks: ");
     String input;
     while (!input.endsWith("\n")) {
-      input += Serial.readString();
+      input += tft.readString();
     }
     input.trim();
     if (input == "scan") {
       scan_and_display_networks();
       continue;
     } else {
-      Serial.println("Enter Wifi password:");
+      tft.println("Enter Wifi password:");
       String password;
       while (!password.endsWith("\n")) {
-        password += Serial.readString();
+        password += tft.readString();
       }
       password.trim();
       if (connect(input, password, 10)) {
         break;
       } else {
-        Serial.println("Connection failed. Please try again.");
+        tft.println("Connection failed. Please try again.");
       }
     }
     delay(500);
   }
-  Serial.println("Connected.");
+  tft.println("Connected.");
 }
 void loop() {
   client.setInsecure();//so we dont need a certificate for https reqs
   String result;
   if (!user_message(result, "gpt-3.5-turbo", "user")) {
-    Serial.println("===ERROR===");
-    Serial.println("Please try again.");
+    tft.println("===ERROR===");
+    tft.println("Please try again.");
   }
 }
 
 void scan_and_display_networks() {
   int number_of_networks = WiFi.scanNetworks();
   for (int i = 0; i < number_of_networks; i++) {//we may want to sort by signal strength and only display the top amount at a later point in time
-    Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    Serial.print("Signal strength: ");
-    Serial.println(WiFi.RSSI(i));
-    Serial.println("-----------------------");
+    tft.print("Network name: ");
+    tft.println(WiFi.SSID(i));
+    tft.print("Signal strength: ");
+    tft.println(WiFi.RSSI(i));
+    tft.println("-----------------------");
     delay(600);//only reason for delay is to make it easier to read
   }
 }
@@ -77,7 +84,7 @@ inline bool connect(String ssid, String password, int timeout) {
   WiFi.begin(ssid, password);
   int attempts = 0;//connection attempts
   while (WiFi.status() != WL_CONNECTED and  attempts < timeout) {
-    Serial.println("Connecting...");
+    tft.println("Connecting...");
     delay(1500);
     attempts++;
   }
@@ -87,22 +94,22 @@ inline bool connect(String ssid, String password, int timeout) {
 inline bool user_message(String& result,
                     const String& model,
                     const String& role) {
-  while (Serial.available()) {
-    Serial.read();
+  while (tft.available()) {
+    tft.read();
   }
   String input;
-  Serial.println("Enter your message: ");
+  tft.println("Enter your message: ");
   while (!input.endsWith("\n")) {
-    input += Serial.readString();
+    input += tft.readString();
   }
   input.trim();
-  Serial.println("Synthesizing response...");
+  tft.println("Synthesizing response...");
   if (chatgpt_req(client, String(openai_api_key), "gpt-3.5-turbo", "user", input, result)) {
     process_json_response(result);
     return true;
   } else {
-    Serial.println("===ERROR===");
-    Serial.println(result);
+    tft.println("===ERROR===");
+    tft.println(result);
     return false;
   }          
 } 
@@ -162,38 +169,38 @@ void process_json_response(const String& json_response) {
   DeserializationError error = deserializeJson(doc, json_response.c_str());
 
   if (error) {//we may or may not want all of this error handling
-    Serial.print("deserializeJson() failed: ");
-    Serial.println(error.c_str());
+    tft.print("deserializeJson() failed: ");
+    tft.println(error.c_str());
     return;
   }
 
   if (!doc.containsKey("choices")) {
-    Serial.println("JSON response does not contain 'choices' array.");
+    tft.println("JSON response does not contain 'choices' array.");
     return;
   }
 
   JsonArray choices_array = doc["choices"].as<JsonArray>();
 
   if (choices_array.size() == 0) {
-    Serial.println("JSON response 'choices' array is empty.");
+    tft.println("JSON response 'choices' array is empty.");
     return;
   }
 
   JsonObject first_choice = choices_array[0].as<JsonObject>();
 
   if (!first_choice.containsKey("message")) {
-    Serial.println("JSON response element does not contain 'message' object.");
+    tft.println("JSON response element does not contain 'message' object.");
     return;
   }
 
   JsonObject message_object = first_choice["message"].as<JsonObject>();
 
   if (!message_object.containsKey("content")) {
-    Serial.println("JSON response 'message' object does not contain 'content' field.");
+    tft.println("JSON response 'message' object does not contain 'content' field.");
     return;
   }
 
   const char* message_content = message_object["content"].as<const char*>();
 
-  Serial.println(message_content);
+  tft.println(message_content);
 }
