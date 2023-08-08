@@ -4,9 +4,20 @@
 #include <WiFiClientSecureBearSSL.h>
 #include "Secrets.h"
 
+#define MAX_NETWORKS 50
+
+struct NetworkInfo {
+  char ssid[100];
+  int rssi;
+};
+
 BearSSL::WiFiClientSecure client;
 
-void scan_and_display_networks();
+void scan_and_display_networks(struct NetworkInfo* networks, int number_of_networks);
+
+void merge_sort(struct NetworkInfo* nums, int n);
+
+void merge(struct NetworkInfo* left, struct NetworkInfo* right, struct NetworkInfo* whole, int nl, int nr);
 
 inline bool connect(String ssid, String password, int timeout);
 
@@ -23,6 +34,7 @@ inline bool chatgpt_req(BearSSL::WiFiClientSecure& client,
 
 void process_json_response(const String& json_response);//needed to parse json for response
 
+
 void setup() {
   Serial.begin(115200);
   while (WiFi.status() != WL_CONNECTED) {
@@ -33,7 +45,13 @@ void setup() {
     }
     input.trim();
     if (input == "scan") {
-      scan_and_display_networks();
+      int number_of_networks = WiFi.scanNetworks();
+      struct NetworkInfo networks[number_of_networks];
+      scan_and_display_networks(networks, number_of_networks);
+      merge_sort(networks, number_of_networks);
+      for (int i = 0; i < 5; i++) {
+        printf("%s\n%d\n", networks[i].ssid, networks[i].rssi);
+      }
       continue;
     } else {
       Serial.println("Enter Wifi password:");
@@ -52,6 +70,7 @@ void setup() {
   }
   Serial.println("Connected.");
 }
+
 void loop() {
   client.setInsecure();//so we dont need a certificate for https reqs
   String result;
@@ -61,21 +80,63 @@ void loop() {
   }
 }
 
-void scan_and_display_networks() {
-  int number_of_networks = WiFi.scanNetworks();
-  for (int i = 0; i < number_of_networks; i++) {//we may want to sort by signal strength and only display the top amount at a later point in time
-    Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    Serial.print("Signal strength: ");
-    Serial.println(WiFi.RSSI(i));
-    Serial.println("-----------------------");
-    delay(600);//only reason for delay is to make it easier to read
+void scan_and_display_networks(struct NetworkInfo* networks, int number_of_networks) {
+  for (int i = 0; i < number_of_networks; i++) {
+    strcpy(networks[i].ssid, WiFi.SSID(i).c_str());
+    networks[i].rssi = WiFi.RSSI(i);
   }
+}
+
+
+void merge(struct NetworkInfo* left, struct NetworkInfo* right, struct NetworkInfo* whole, int nl, int nr) {
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    while ((i < nl) && (j < nr)) {
+        if (left[i].rssi >= right[j].rssi) {
+            whole[k] = left[i];
+            i++;
+        } else {
+            whole[k] = right[j];
+            j++;
+        }
+        k++;
+    }
+    while (i < nl) {
+        whole[k] = left[i];
+        i++;
+        k++;
+    }
+    while (j < nr) {
+        whole[k] = right[j];
+        j++;
+        k++;
+    }
+}
+
+
+void merge_sort(struct NetworkInfo* nums, int n) {
+    if (n <= 1) {
+        return;
+    }
+
+    int mid = n / 2;
+    merge_sort(nums, mid);
+    merge_sort(nums + mid, n - mid);
+
+    struct NetworkInfo* sorted = (struct NetworkInfo*)malloc(n * sizeof(struct NetworkInfo));
+    merge(nums, nums + mid, sorted, mid, n - mid);
+
+    for (int i = 0; i < n; i++) {
+        nums[i] = sorted[i];
+    }
+
+    free(sorted);
 }
 
 inline bool connect(String ssid, String password, int timeout) {
   WiFi.begin(ssid, password);
-  int attempts = 0;//connection attempts
+  int attempts = 0;
   while (WiFi.status() != WL_CONNECTED and  attempts < timeout) {
     Serial.println("Connecting...");
     delay(1500);
@@ -83,6 +144,7 @@ inline bool connect(String ssid, String password, int timeout) {
   }
   return WiFi.status() == WL_CONNECTED;
 }
+
 
 inline bool user_message(String& result,
                     const String& model,
